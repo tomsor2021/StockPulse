@@ -1,0 +1,17 @@
+*.db
+*.db-shm
+*.db-wal
+*.log
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv/
+venv/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.DS_Store
+Thumbs.db
+logs/

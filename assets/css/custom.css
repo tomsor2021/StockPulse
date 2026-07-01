@@ -1,0 +1,8 @@
+﻿/* StockPulse 自定义样式 */
+.stApp header { display: none; }
+.st-emotion-cache-1y4p8pa { padding-top: 1rem; }
+.st-emotion-cache-10trblm { text-align: center; }
+div[data-testid="stMetricValue"] { font-size: 1.8rem; font-weight: bold; }
+div[data-testid="stMetricDelta"] { font-size: 0.9rem; }
+.stTabs [data-baseweb="tab-list"] { gap: 8px; }
+.stTabs [data-baseweb="tab"] { border-radius: 4px 4px 0 0; padding: 8px 16px; }
