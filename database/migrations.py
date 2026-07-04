@@ -45,4 +45,14 @@ def _run_v1_to_current(current: int):
     # v1: 初始版本，表结构由 db.py 的 init_database 创建
     if current < 1:
         logger.info("迁移 v1 已完成（建表由 db.py 处理）")
+    # v2: 添加指数收盘价字段
+    if current < 2:
+        logger.info("迁移 v2: 添加 sh_close, sz_close, cy_close 字段")
+        try:
+            conn.execute("ALTER TABLE market_snapshots ADD COLUMN sh_close REAL")
+            conn.execute("ALTER TABLE market_snapshots ADD COLUMN sz_close REAL")
+            conn.execute("ALTER TABLE market_snapshots ADD COLUMN cy_close REAL")
+            logger.info("迁移 v2 完成")
+        except Exception as e:
+            logger.warning(f"迁移 v2 可能已执行: {e}")
     conn.commit()

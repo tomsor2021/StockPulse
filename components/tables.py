@@ -1,8 +1,8 @@
-﻿"""表格和弹窗组件"""
+"""表格和弹窗组件"""
 import streamlit as st
 
 
-def sortable_table(df, column_config=None, height=400, use_container_width=True):
+def sortable_table(df, column_config=None, height=400, width="stretch"):
     """可排序表格"""
     if df is None or df.empty:
         st.caption("暂无数据")
@@ -11,7 +11,7 @@ def sortable_table(df, column_config=None, height=400, use_container_width=True)
         df,
         column_config=column_config,
         height=height,
-        use_container_width=use_container_width,
+        width=width,
         hide_index=True,
     )
 

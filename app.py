@@ -1,18 +1,18 @@
-﻿"""StockPulse 主入口"""
+# -*- coding: utf-8 -*-
+"""StockPulse 主入口"""
 import streamlit as st
-import sys
 import os
+import sys
 
 # 确保项目根目录在 path 中
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-# 强制清除 pages 模块缓存
+# 开发模式：强制重载 views 模块以获取最新代码
 for mod_name in list(sys.modules.keys()):
-    if mod_name.startswith('pages'):
+    if mod_name.startswith("views.") or mod_name == "views":
         del sys.modules[mod_name]
 
 from config.settings import CSS_PATH
-from config.theme import get_theme_color
 from database.db import init_database
 from database.migrations import run_migrations
 from utils.logger import setup_logging
@@ -39,29 +39,35 @@ if CSS_PATH.exists():
 if "user" not in st.session_state:
     st.session_state["user"] = None
 
-# ── 登录/注册 ──
-if not st.session_state["user"]:
-    from auth.forms import show_login_page
-    show_login_page()
-    st.stop()
-
-# ── 已登录：侧边栏导航 ──
 user = st.session_state.get("user")
 
-# 安全检查：user 可能为 None
-if not user:
+# ── 自动登录（开发测试用）──
+if user is None:
+    query_params = st.query_params
+    auto_user = query_params.get("auto_user")
+    auto_pw = query_params.get("auto_pw")
+    if auto_user and auto_pw:
+        from auth.auth import authenticate_user
+        auto_result = authenticate_user(auto_user, auto_pw)
+        if auto_result:
+            st.session_state["user"] = auto_result
+            user = auto_result
+
+# ── 未登录：仅显示登录页 ──
+if user is None or not isinstance(user, dict) or not user.get("user_id"):
     from auth.forms import show_login_page
     show_login_page()
     st.stop()
 
+# ── 已登录：侧边栏 + 页面渲染 ──
+display_name = user.get("nickname") or user.get("username") or "用户"
+
 with st.sidebar:
-    st.markdown(f"### 📊 StockPulse")
-    display_name = user.get('nickname') if user.get('nickname') else user.get('username', '用户')
+    st.markdown("### 📊 StockPulse")
     st.markdown(f"👤 **{display_name}**")
     st.divider()
 
-    # 页面导航
-    from pages import dashboard, daily_review, watchlist, trades, journal, settings
+    from views import dashboard, daily_review, watchlist, trades, journal, settings
     from auth.forms import logout
 
     page = st.navigation([
@@ -74,8 +80,7 @@ with st.sidebar:
     ])
 
     st.divider()
-    if st.button("🚪 退出登录", use_container_width=True):
+    if st.button("🚪 退出登录", width="stretch"):
         logout()
 
-# ── 渲染选中页面 ──
 page.run()

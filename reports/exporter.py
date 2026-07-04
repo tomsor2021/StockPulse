@@ -1,16 +1,17 @@
-ï»¿"""å¤ç›˜æŠ¥å‘Šå¯¼å‡º"""
+"""¸´ÅÌ±¨¸æµ¼³ö"""
 import io
 import html
 from datetime import date
 
 
 def export_html_report(user_info, market_data, review_journal):
-    """å¯¼å‡ºå¤ç›˜æŠ¥å‘Šä¸º HTML"""
+    """µ¼³ö¸´ÅÌ±¨¸æÎª HTML"""
     today = date.today().isoformat()
-    username = html.escape(user_info.get("nickname", user_info.get("username", "ç”¨æˆ·")))
+    review_journal = dict(review_journal) if review_journal else None
+    username = html.escape(user_info.get("nickname", user_info.get("username", "ÓÃ»§")))
     html_content = f"""<!DOCTYPE html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><title>å¤ç›˜æŠ¥å‘Š {today}</title>
+<head><meta charset="UTF-8"><title>¸´ÅÌ±¨¸æ {today}</title>
 <style>
   body {{ font-family: "Microsoft YaHei", sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; color: #333; }}
   h1 {{ color: #1976D2; border-bottom: 2px solid #1976D2; padding-bottom: 8px; }}
@@ -20,17 +21,17 @@ def export_html_report(user_info, market_data, review_journal):
   .score {{ font-size: 20px; font-weight: bold; }}
 </style></head>
 <body>
-  <h1>ğŸ“Š è‚¡ç¥¨å¤ç›˜æŠ¥å‘Š</h1>
-  <p class="meta">ç”¨æˆ·ï¼š{username} | æ—¥æœŸï¼š{today}</p>
+  <h1>? ¹ÉÆ±¸´ÅÌ±¨¸æ</h1>
+  <p class="meta">ÓÃ»§£º{username} | ÈÕÆÚ£º{today}</p>
 """
     if review_journal:
-        for key, label in [("market_diagnosis", "å¤§ç›˜è¯Šæ–­"), ("sector_rotation", "æ¿å—è½®åŠ¨"),
-                            ("limit_up_analysis", "æ¶¨åœåˆ†æ"), ("personal_review", "æ“ä½œå›é¡¾"),
-                            ("plan_for_tomorrow", "æ¬¡æ—¥è®¡åˆ’")]:
+        for key, label in [("market_diagnosis", "´óÅÌÕï¶Ï"), ("sector_rotation", "°å¿éÂÖ¶¯"),
+                            ("limit_up_analysis", "ÕÇÍ£·ÖÎö"), ("personal_review", "²Ù×÷»Ø¹Ë"),
+                            ("plan_for_tomorrow", "´ÎÈÕ¼Æ»®")]:
             val = review_journal.get(key)
             if val:
                 html_content += f'<div class="section"><h2>{label}</h2><p>{html.escape(str(val))}</p></div>\n'
-        html_content += f'<p>æƒ…ç»ªè¯„åˆ†ï¼š{review_journal.get("emotion_score", "N/A")}/10 | çºªå¾‹è¯„åˆ†ï¼š{review_journal.get("discipline_score", "N/A")}/10</p>\n'
+        html_content += f'<p>ÇéĞ÷ÆÀ·Ö£º{review_journal.get("emotion_score", "N/A")}/10 | ¼ÍÂÉÆÀ·Ö£º{review_journal.get("discipline_score", "N/A")}/10</p>\n'
 
-    html_content += "<hr><p style='color:#999;font-size:12px;'>ç”± StockPulse ç”Ÿæˆ</p></body></html>"
+    html_content += "<hr><p style='color:#999;font-size:12px;'>ÓÉ StockPulse Éú³É</p></body></html>"
     return html_content

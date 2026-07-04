@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "skills": {
+    "debugger": {
+      "name": "Debugger",
+      "zip_url": "https://api.skillhub.cn/api/v1/download?slug=debugger",
+      "source": "community",
+      "version": "1.0.3",
+      "installedAt": "2026-07-03T15:08:20Z"
+    },
+    "code-review": {
+      "name": "Code Review",
+      "zip_url": "https://api.skillhub.cn/api/v1/download?slug=code-review",
+      "source": "community",
+      "version": "1.0.0",
+      "installedAt": "2026-07-03T15:08:33Z"
+    },
+    "frontend-skill": {
+      "name": "frontend-skill",
+      "zip_url": "https://api.skillhub.cn/api/v1/download?slug=frontend-skill",
+      "source": "community",
+      "version": "1.0.1",
+      "installedAt": "2026-07-03T15:08:46Z"
+    },
+    "westock-data": {
+      "name": "腾讯自选股-金融数据查询",
+      "zip_url": "https://api.skillhub.cn/api/v1/download?slug=westock-data",
+      "source": "community",
+      "version": "1.0.6",
+      "installedAt": "2026-07-03T15:32:09Z"
+    }
+  }
+}

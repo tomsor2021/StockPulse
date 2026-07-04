@@ -1,12 +1,13 @@
-﻿"""每日复盘页面"""
+"""每日复盘页面"""
 import streamlit as st
-from datetime import date
+from datetime import date, datetime, timedelta
 from database import models as db
 from config.theme import get_theme_color
 from config.settings import THEME_LIGHT
 from utils.helpers import today_str, make_sentience_label
 from components.kline import kline_chart
-from data import fetcher
+from components.cards import market_metric
+from data import fetcher, sync, cache
 
 
 def render():
@@ -18,8 +19,40 @@ def render():
     review_date = st.date_input("复盘日期", value=date.today(), key="review_date_picker")
     date_str = review_date.isoformat()
 
+    snapshot = db.get_today_market_snapshot(today)
+    snapshot = dict(snapshot) if snapshot else {}
+
+    col_refresh, col_status = st.columns([1, 3])
+    with col_refresh:
+        if st.button("🔄 刷新数据"):
+            progress_bar = st.progress(0, text="正在同步...")
+            def progress_cb(pct, msg):
+                progress_bar.progress(pct, text=msg)
+            sync.sync_all(uid, progress_callback=progress_cb)
+            st.cache_data.clear()
+            st.success("数据已更新")
+            st.rerun()
+
+    with col_status:
+        cache_info = cache.get_cache_info()
+        last_fetch = cache.get_last_fetch_time()
+
+        if snapshot and snapshot.get("created_at"):
+            db_time_str = snapshot["created_at"][:19]
+
+            if cache_info:
+                st.info(f"🗄️ 缓存数据 | 数据更新时间: {db_time_str} | 缓存时间: {last_fetch.strftime('%H:%M:%S') if last_fetch else '--'}")
+            else:
+                st.info(f"⬇️ 实时数据 | 数据更新时间: {db_time_str}")
+        else:
+            if cache_info:
+                st.info(f"🗄️ 缓存数据 | 缓存时间: {last_fetch.strftime('%Y-%m-%d %H:%M:%S') if last_fetch else '--'}")
+            else:
+                st.warning("⚠️ 暂无数据")
+
     # 加载已有复盘
     existing = db.get_review_journal(uid, date_str)
+    existing = dict(existing) if existing else None
 
     tab1, tab2, tab3 = st.tabs(["📊 大盘诊断", "📋 自选股表现", "✍️ 复盘笔记"])
 
@@ -29,18 +62,18 @@ def render():
         if index_data and index_data.get("sh"):
             c1, c2, c3 = st.columns(3)
             with c1:
-                st.metric("上证", f"{index_data['sh']['close']:.2f}",
-                          f"{index_data['sh']['change_pct']:+.2f}%")
+                market_metric("上证", index_data['sh']['close'], index_data['sh']['change_pct'])
             with c2:
-                st.metric("深证", f"{index_data['sz']['close']:.2f}" if index_data.get('sz') else "--",
-                          f"{index_data['sz']['change_pct']:+.2f}%" if index_data.get('sz') else "")
+                market_metric("深证", index_data['sz']['close'] if index_data.get('sz') else None,
+                              index_data['sz']['change_pct'] if index_data.get('sz') else None)
             with c3:
-                st.metric("创业板", f"{index_data['cy']['close']:.2f}" if index_data.get('cy') else "--",
-                          f"{index_data['cy']['change_pct']:+.2f}%" if index_data.get('cy') else "")
+                market_metric("创业板", index_data['cy']['close'] if index_data.get('cy') else None,
+                              index_data['cy']['change_pct'] if index_data.get('cy') else None)
         else:
             st.info("暂无大盘数据，请先同步行情")
 
         snapshot = db.get_today_market_snapshot(today)
+        snapshot = dict(snapshot) if snapshot else None
         if snapshot:
             st.caption(f"市场情绪: {make_sentience_label(snapshot['sentiment'])}")
             c1, c2 = st.columns(2)
@@ -65,7 +98,7 @@ def render():
                 })
             import pandas as pd
             df = pd.DataFrame(rows)
-            st.dataframe(df, hide_index=True, use_container_width=True)
+            st.dataframe(df, hide_index=True, width="stretch")
 
             # 个股K线
             st.subheader("个股K线图")
@@ -75,11 +108,11 @@ def render():
                 selected = st.selectbox("选择个股查看K线", list(code_options.keys()))
                 if selected:
                     code = code_options[selected]
-                    kdf = fetcher.fetch_kline_data(code, (date.today() - __import__('datetime').timedelta(days=180)).isoformat())
+                    kdf = fetcher.fetch_kline_data(code, (date.today() - timedelta(days=180)).isoformat())
                     if kdf is not None and not kdf.empty:
                         fig = kline_chart(kdf)
                         if fig:
-                            st.plotly_chart(fig, use_container_width=True)
+                            st.plotly_chart(fig, width="stretch")
                     else:
                         st.info("K线数据暂不可用（交易时段外或接口限制）")
         else:
@@ -117,4 +150,3 @@ def render():
 
         if st.button("📄 导出报告"):
             st.info("报告导出功能开发中")
-

@@ -49,10 +49,14 @@ def is_trading_time() -> bool:
 
 
 def parse_stock_code(code: str) -> str:
-    """标准化股票代码"""
-    code = code.strip().upper().replace(".SZ", "").replace(".SH", "")
-    # 6 位纯数字
+    """标准化股票代码（支持A股6位和港股5位）"""
+    code = code.strip().upper().replace(".SZ", "").replace(".SH", "").replace(".HK", "")
+    # 优先匹配6位A股代码
     match = re.search(r'(\d{6})', code)
+    if match:
+        return match.group(1)
+    # 匹配5位港股代码
+    match = re.search(r'(\d{5})', code)
     if match:
         return match.group(1)
     return code

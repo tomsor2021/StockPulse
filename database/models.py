@@ -81,14 +81,21 @@ def get_watchlist(user_id: int, group_name: str = None) -> List[sqlite3.Row]:
     return cur.fetchall()
 
 
-def get_watchlist_stock(user_id: int, code: str) -> Optional[sqlite3.Row]:
-    cur = get_connection().execute(
-        "SELECT * FROM watchlist_stocks WHERE user_id = ? AND code = ? AND is_active = 1", (user_id, code)
-    )
+def get_watchlist_stock(user_id: int, code: str, group_name: str = None) -> Optional[sqlite3.Row]:
+    conn = get_connection()
+    if group_name:
+        cur = conn.execute(
+            "SELECT * FROM watchlist_stocks WHERE user_id = ? AND code = ? AND group_name = ? AND is_active = 1", 
+            (user_id, code, group_name)
+        )
+    else:
+        cur = conn.execute(
+            "SELECT * FROM watchlist_stocks WHERE user_id = ? AND code = ? AND is_active = 1", (user_id, code)
+        )
     return cur.fetchone()
 
 
-def update_watchlist_stock(user_id: int, code: str, **kwargs):
+def update_watchlist_stock(user_id: int, code: str, group_name: str = None, **kwargs):
     conn = get_connection()
     allowed = {"name", "group_name", "note", "alert_up_pct", "alert_down_pct", "alert_volume_ratio", "alert_break_price"}
     sets = []
@@ -98,14 +105,23 @@ def update_watchlist_stock(user_id: int, code: str, **kwargs):
             sets.append(f"{k} = ?")
             vals.append(v)
     if sets:
-        vals.extend([user_id, code])
-        conn.execute(f"UPDATE watchlist_stocks SET {', '.join(sets)} WHERE user_id = ? AND code = ?", vals)
+        vals.append(user_id)
+        vals.append(code)
+        where = "WHERE user_id = ? AND code = ?"
+        if group_name:
+            where += " AND group_name = ?"
+            vals.append(group_name)
+        conn.execute(f"UPDATE watchlist_stocks SET {', '.join(sets)} {where}", vals)
         conn.commit()
 
 
-def soft_delete_watchlist_stock(user_id: int, code: str):
+def soft_delete_watchlist_stock(user_id: int, code: str, group_name: str = None):
     conn = get_connection()
-    conn.execute("UPDATE watchlist_stocks SET is_active = 0 WHERE user_id = ? AND code = ?", (user_id, code))
+    if group_name:
+        conn.execute("UPDATE watchlist_stocks SET is_active = 0 WHERE user_id = ? AND code = ? AND group_name = ?", 
+                     (user_id, code, group_name))
+    else:
+        conn.execute("UPDATE watchlist_stocks SET is_active = 0 WHERE user_id = ? AND code = ?", (user_id, code))
     conn.commit()
 
 
@@ -182,25 +198,25 @@ def get_monthly_trade_summary(user_id: int, year: int = None) -> List[sqlite3.Ro
 
 
 # ── market_snapshots ──
-def upsert_market_snapshot(date_str: str, sh_code: str, sh_change: float, sh_vol: float,
-                           sz_code: str, sz_change: float, sz_vol: float,
-                           cy_code: str, cy_change: float, cy_vol: float,
+def upsert_market_snapshot(date_str: str, sh_code: str, sh_close: float, sh_change: float, sh_vol: float,
+                           sz_code: str, sz_close: float, sz_change: float, sz_vol: float,
+                           cy_code: str, cy_close: float, cy_change: float, cy_vol: float,
                            limit_up: int, limit_down: int, total_limit_up: int, sentiment: str):
     conn = get_connection()
     conn.execute("""
-        INSERT INTO market_snapshots (date, sh_code, sh_change_pct, sh_volume, sz_code, sz_change_pct, sz_volume,
-                                       cy_code, cy_change_pct, cy_volume, limit_up_count, limit_down_count,
+        INSERT INTO market_snapshots (date, sh_code, sh_close, sh_change_pct, sh_volume, sz_code, sz_close, sz_change_pct, sz_volume,
+                                       cy_code, cy_close, cy_change_pct, cy_volume, limit_up_count, limit_down_count,
                                        total_limit_up, sentiment)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(date) DO UPDATE SET
-            sh_change_pct=excluded.sh_change_pct, sh_volume=excluded.sh_volume,
-            sz_change_pct=excluded.sz_change_pct, sz_volume=excluded.sz_volume,
-            cy_change_pct=excluded.cy_change_pct, cy_volume=excluded.cy_volume,
+            sh_close=excluded.sh_close, sh_change_pct=excluded.sh_change_pct, sh_volume=excluded.sh_volume,
+            sz_close=excluded.sz_close, sz_change_pct=excluded.sz_change_pct, sz_volume=excluded.sz_volume,
+            cy_close=excluded.cy_close, cy_change_pct=excluded.cy_change_pct, cy_volume=excluded.cy_volume,
             limit_up_count=excluded.limit_up_count, limit_down_count=excluded.limit_down_count,
             total_limit_up=excluded.total_limit_up, sentiment=excluded.sentiment,
             created_at=CURRENT_TIMESTAMP
-    """, (date_str, sh_code, sh_change, sh_vol, sz_code, sz_change, sz_vol,
-          cy_code, cy_change, cy_vol, limit_up, limit_down, total_limit_up, sentiment))
+    """, (date_str, sh_code, sh_close, sh_change, sh_vol, sz_code, sz_close, sz_change, sz_vol,
+          cy_code, cy_close, cy_change, cy_vol, limit_up, limit_down, total_limit_up, sentiment))
     conn.commit()
 
 
@@ -279,10 +295,9 @@ def upsert_watchlist_daily(user_id: int, date_str: str, stock_code: str, stock_n
                            volume_ratio: float = None, amplitude: float = None, status: str = None):
     conn = get_connection()
     conn.execute("""
-        INSERT INTO watchlist_daily (user_id, date, stock_code, stock_name, close_price, change_pct,
+        INSERT OR REPLACE INTO watchlist_daily (user_id, date, stock_code, stock_name, close_price, change_pct,
                                       volume_ratio, amplitude, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT DO NOTHING
     """, (user_id, date_str, stock_code, stock_name, close_price, change_pct, volume_ratio, amplitude, status))
     conn.commit()
 

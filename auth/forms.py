@@ -1,4 +1,4 @@
-﻿"""Streamlit 表单组件（登录/注册/修改密码 UI）"""
+"""Streamlit 表单组件（登录/注册/修改密码 UI）"""
 import streamlit as st
 from auth.auth import authenticate_user, register_user, change_password, change_nickname, delete_account, is_first_user
 
@@ -9,8 +9,16 @@ def show_login_page():
 
     st.markdown("""
     <style>
+    [data-testid="stSidebar"] { display: none; }
     .main > div { max-width: 400px; margin: 0 auto; padding-top: 80px; }
     .stApp header { display: none; }
+    .custom-login-form { margin-top: 20px; }
+    .custom-login-form .form-group { margin-bottom: 16px; }
+    .custom-login-form label { display: block; margin-bottom: 6px; font-weight: 500; color: #333; }
+    .custom-login-form input { width: 100%; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+    .custom-login-form input:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+    .custom-login-form button { width: 100%; padding: 12px; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; }
+    .custom-login-form button:hover { opacity: 0.9; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -27,18 +35,19 @@ def show_login_page():
         tab1, tab2 = st.tabs(["登录", "注册"])
 
         with tab1:
-            username_input = st.text_input("用户名", key="login_username")
-            password_input = st.text_input("密码", type="password", key="login_password")
-            if st.button("登录", type="primary", use_container_width=True):
-                if not username_input or not password_input:
-                    st.error("请输入用户名和密码")
-                    return None
-                user = authenticate_user(username_input, password_input)
-                if user:
-                    st.session_state["user"] = user
-                    st.rerun()
-                else:
-                    st.error("用户名或密码错误")
+            st.markdown("""
+            <form class="custom-login-form" id="custom-login-form" method="GET" action="?">
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <input type="text" id="username" name="auto_user" placeholder="请输入用户名" autocomplete="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">密码</label>
+                    <input type="password" id="password" name="auto_pw" placeholder="请输入密码" autocomplete="current-password" required>
+                </div>
+                <button type="submit">登录</button>
+            </form>
+            """, unsafe_allow_html=True)
 
         with tab2:
             return show_register_page()
@@ -54,7 +63,7 @@ def show_register_page(is_admin_setup=False):
     reg_confirm = st.text_input("确认密码", type="password", key="reg_confirm")
 
     btn_label = "创建管理员账号" if is_admin_setup else "注册"
-    if st.button(btn_label, type="primary", use_container_width=True):
+    if st.button(btn_label, type="primary", width="stretch"):
         if not reg_username or not reg_password:
             st.error("用户名和密码不能为空")
             return None
@@ -113,7 +122,7 @@ def show_account_settings():
     with st.expander("⚠️ 注销账户", expanded=False):
         st.warning("注销后所有数据将被永久删除，不可恢复！")
         confirm_pw2 = st.text_input("输入密码确认注销", type="password", key="delete_confirm")
-        if st.button("确认注销", type="primary", use_container_width=True):
+        if st.button("确认注销", type="primary", width="stretch"):
             if confirm_pw2 and delete_account(user["user_id"], confirm_pw2):
                 st.session_state.clear()
                 st.rerun()
@@ -124,4 +133,5 @@ def show_account_settings():
 def logout():
     """登出"""
     st.session_state.clear()
+    st.query_params.clear()
     st.rerun()

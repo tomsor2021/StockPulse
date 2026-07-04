@@ -1,4 +1,4 @@
-﻿"""交易记录页面"""
+"""交易记录页面"""
 import streamlit as st
 import pandas as pd
 from datetime import date, timedelta
@@ -32,7 +32,24 @@ def render():
         c1, c2 = st.columns(2)
         with c1:
             t_date = st.date_input("交易日期", value=today, key="new_trade_date")
-            t_code = st.text_input("股票代码", key="new_trade_code")
+            t_code = st.text_input("股票代码", placeholder="例如 A股 000001 / 港股 06869", key="new_trade_code")
+            
+            # 实时查询股票名称（支持A股6位和港股5位）
+            trade_stock_name = None
+            if t_code.strip():
+                code = parse_stock_code(t_code.strip())
+                if len(code) in (5, 6):
+                    try:
+                        trade_stock_name = fetcher.fetch_stock_name(code)
+                    except Exception:
+                        pass
+            
+            # 显示股票名称
+            if trade_stock_name:
+                st.markdown(f"<span style='color:#4CAF50; font-weight:500'>📌 {trade_stock_name}</span>", unsafe_allow_html=True)
+            elif t_code.strip() and len(parse_stock_code(t_code.strip())) in (5, 6):
+                st.markdown("<span style='color:#FF9800'>⏳ 查询中...</span>", unsafe_allow_html=True)
+            
             t_dir = st.selectbox("方向", ["买入", "卖出"], key="new_trade_dir")
             t_price = st.number_input("成交价", step=0.01, format="%.2f", key="new_trade_price")
         with c2:
@@ -43,11 +60,14 @@ def render():
         if st.button("保存交易", type="primary", key="save_trade"):
             if t_code.strip() and t_price > 0 and t_qty > 0:
                 code = parse_stock_code(t_code.strip())
-                name = fetcher.fetch_stock_name(code) or code
+                if len(code) not in (5, 6):
+                    st.error("股票代码必须是5位（港股）或6位（A股）数字")
+                    return
+                name = trade_stock_name or fetcher.fetch_stock_name(code) or code
                 db.add_transaction(uid, t_date.isoformat(), code, name,
                                    "buy" if t_dir == "买入" else "sell",
                                    t_price, int(t_qty), t_fee, t_reason)
-                st.success("交易记录已保存")
+                st.success(f"交易记录已保存: {name}")
                 st.rerun()
             else:
                 st.error("请填写完整的交易信息")
@@ -76,29 +96,34 @@ def render():
                 "ID": t["id"],
             })
         df = pd.DataFrame(rows)
+        df = df[["ID", "日期", "代码", "名称", "方向", "成交价", "数量", "成交额", "手续费", "买卖理由"]]
         st.dataframe(
-            df.drop(columns=["ID"]),
+            df,
             column_config={
+                "ID": st.column_config.NumberColumn("ID", width="small"),
                 "日期": st.column_config.DateColumn("日期"),
                 "成交价": st.column_config.NumberColumn("成交价", format="¥%.2f"),
                 "成交额": st.column_config.NumberColumn("成交额", format="¥%.2f"),
                 "手续费": st.column_config.NumberColumn("手续费", format="¥%.2f"),
             },
-            hide_index=True, use_container_width=True,
+            hide_index=True, width="stretch",
         )
 
         # 删除交易
         with st.expander("🗑 删除交易"):
-            del_id = st.number_input("输入要删除的交易 ID", min_value=0, step=1, key="del_trade_id")
+            del_id = int(st.number_input("输入要删除的交易 ID", min_value=1, step=1, key="del_trade_id"))
             if st.button("确认删除", type="primary"):
-                for t in transactions:
-                    if t["id"] == del_id:
+                if del_id > 0:
+                    all_tx = db.get_transactions(uid)
+                    tx_dict_list = [dict(t) for t in all_tx]
+                    if any(t["id"] == del_id for t in tx_dict_list):
                         db.delete_transaction(del_id, uid)
                         st.success("已删除")
                         st.rerun()
-                        break
+                    else:
+                        st.error(f"未找到 ID 为 {del_id} 的交易记录")
                 else:
-                    st.error("未找到该交易记录")
+                    st.error("请输入有效的交易 ID")
 
         # 统计
         st.divider()
@@ -138,7 +163,7 @@ def render():
             fig = go.Figure(data=[go.Bar(x=mdf["月份"], y=mdf["盈亏"], marker_color=colors)])
             fig.update_layout(height=300, margin=dict(l=20, r=20, t=20, b=20),
                               yaxis_title="盈亏（元）")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
     else:
         st.info("暂无交易记录")
 

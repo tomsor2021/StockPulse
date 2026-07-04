@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DB_DIR = ROOT_DIR
 DB_PATH = DB_DIR / "StockPulse.db"
-DB_VERSION = 1
+DB_VERSION = 2
 LOG_DIR = ROOT_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_LEVEL = "INFO"

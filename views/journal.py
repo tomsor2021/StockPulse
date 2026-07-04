@@ -1,4 +1,4 @@
-﻿"""复盘日志页面"""
+"""复盘日志页面"""
 import streamlit as st
 import pandas as pd
 from datetime import date, timedelta
@@ -15,11 +15,16 @@ def render():
     if dates_with_journals:
         st.caption(f"📅 共有 {len(dates_with_journals)} 天有复盘记录")
 
-    # 选择日期
+    # 选择日期（使用中间变量处理按钮点击跳转）
+    if st.session_state.get("selected_journal_date"):
+        st.session_state["journal_date"] = date.fromisoformat(st.session_state["selected_journal_date"])
+        del st.session_state["selected_journal_date"]
+    
     view_date = st.date_input("查看日期", value=date.today(), key="journal_date")
     date_str = view_date.isoformat()
 
     journal = db.get_review_journal(uid, date_str)
+    journal = dict(journal) if journal else None
 
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -51,10 +56,11 @@ def render():
     with col2:
         st.subheader("近期日志")
         journals = db.get_review_journals(uid, 30)
+        journals = [dict(j) for j in journals]
         for j in journals[:10]:
-            if st.button(f"{j['review_date']} ⭐{j['emotion_score'] or '?'}/10",
-                         key=f"j_{j['id']}", use_container_width=True):
-                # 这里简化处理，直接跳转日期选择
-                st.session_state["journal_date"] = date.fromisoformat(j["review_date"])
+            btn_key = f"j_{j['id']}"
+            btn_label = f"{j['review_date']} ⭐{j['emotion_score'] or '?'}/10"
+            if st.button(btn_label, key=btn_key, width="stretch"):
+                st.session_state["selected_journal_date"] = j["review_date"]
                 st.rerun()
 

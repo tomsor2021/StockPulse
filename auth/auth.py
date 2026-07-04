@@ -1,4 +1,4 @@
-﻿"""用户认证核心逻辑"""
+"""用户认证核心逻辑"""
 import logging
 import hashlib
 import os

@@ -1,4 +1,4 @@
-﻿"""看板卡片组件"""
+"""看板卡片组件"""
 import streamlit as st
 from config.theme import color_change, arrow_change
 from utils.helpers import format_pct, format_money, format_volume
@@ -9,10 +9,12 @@ def market_index_card(title, value, change_pct, volume, colors):
     vol_str = format_volume(volume)
     clr = color_change(change_pct, colors)
     arrow = arrow_change(change_pct)
+    value_str = f"{value:,.2f}" if value else "--"
     st.markdown(f"""
     <div style='background:{colors["card_bg"]};padding:16px;border-radius:8px;margin:4px 0'>
         <div style='font-size:14px;color:{colors["text_secondary"]}'>{title}</div>
-        <div style='font-size:24px;font-weight:bold;color:{clr}'>{arrow} {change_str}</div>
+        <div style='font-size:28px;font-weight:bold;color:{colors["text"]}'>{value_str}</div>
+        <div style='font-size:14px;font-weight:bold;color:{clr}'>{arrow} {change_str}</div>
         <div style='font-size:12px;color:{colors["text_secondary"]}'>成交额: {vol_str}</div>
     </div>
     """, unsafe_allow_html=True)
@@ -26,6 +28,28 @@ def stat_card(label, value, sub_text="", color=None):
         <div style='font-size:13px;color:#757575'>{label}</div>
         <div style='font-size:22px;font-weight:bold;color:{color}'>{value}</div>
         {f'<div style="font-size:11px;color:#9E9E9E">{sub_text}</div>' if sub_text else ''}
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def market_metric(label, value, change_pct):
+    if value is None:
+        value_str = "--"
+    else:
+        value_str = f"{value:,.2f}"
+    
+    if change_pct is None:
+        change_str = "--"
+        change_color = "#9E9E9E"
+    else:
+        change_str = f"{change_pct:+.2f}%"
+        change_color = "#D32F2F" if change_pct > 0 else "#2E7D32"
+    
+    st.markdown(f"""
+    <div style='background:{st.get_option("theme.secondaryBackgroundColor")};padding:16px;border-radius:8px;margin:4px 0'>
+        <div style='font-size:13px;color:#757575;margin-bottom:4px'>{label}</div>
+        <div style='font-size:24px;font-weight:bold;color:#212121'>{value_str}</div>
+        <div style='font-size:14px;font-weight:bold;color:{change_color}'>{change_str}</div>
     </div>
     """, unsafe_allow_html=True)
 

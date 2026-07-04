@@ -48,7 +48,7 @@ def init_database():
         alert_break_price REAL,
         added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         is_active INTEGER DEFAULT 1,
-        UNIQUE(user_id, code)
+        UNIQUE(user_id, code, group_name)
     );
     CREATE INDEX IF NOT EXISTS IX_watchlist_user ON watchlist_stocks(user_id, group_name);
 
@@ -164,6 +164,14 @@ def init_database():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         done_at TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS stock_basic (
+        code TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        market TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS IX_stock_basic_name ON stock_basic(name);
     """)
     conn.commit()
 
