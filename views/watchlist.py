@@ -1,5 +1,6 @@
 """自选股池页面"""
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 from datetime import date, datetime, timedelta
 from database import models as db
@@ -46,7 +47,14 @@ def render():
             else:
                 st.warning("⚠️ 暂无数据")
 
-    tabs = st.tabs(WATCHLIST_GROUPS)
+    # 获取各组股票数量
+    all_stocks = db.get_watchlist(uid)
+    group_counts = {}
+    for s in all_stocks:
+        g = s["group_name"]
+        group_counts[g] = group_counts.get(g, 0) + 1
+
+    tabs = st.tabs([f"{g} ({group_counts.get(g, 0)})" for g in WATCHLIST_GROUPS])
     for idx, group in enumerate(WATCHLIST_GROUPS):
         with tabs[idx]:
             _render_group(uid, group)
@@ -55,27 +63,60 @@ def render():
 def _render_group(uid, group_name):
     # 添加自选股
     with st.expander("➕ 添加自选股", expanded=False):
-        c1, c2 = st.columns([2, 1])
-        with c1:
-            code_input = st.text_input("股票/基金代码", placeholder="例如 A股 000001 / 港股 06869 / 基金 510300", 
+        # ── JS桥接：components.html 使用 setComponentValue 传值 ──
+        # 首次运行返回 DeltaGenerator，JS 调用 setComponentValue 触发 rerun 后，
+        # 下一次运行 components.html 应返回 JS 传来的字符串值
+        _rt = components.html(
+            f"""
+            <script>
+            (function() {{
+                var findInput = function() {{
+                    var inp = window.parent.document.querySelector('input[placeholder*="000001"]');
+                    if (inp && !inp._sw) {{
+                        inp._sw = true;
+                        inp.addEventListener('input', function() {{
+                            var digits = this.value.replace(/\\D/g, '');
+                            if (digits.length >= 5) {{
+                                try {{ Streamlit.setComponentValue(this.value); }} catch(e) {{}}
+                            }}
+                        }});
+                    }}
+                }};
+                findInput();
+                new MutationObserver(findInput).observe(window.parent.document.body, {{
+                    childList: true, subtree: true
+                }});
+            }})();
+            </script>
+            """,
+            height=0,
+        )
+        # 如果 JS 传回了值，同步到 session_state 以便 text_input 显示
+        if isinstance(_rt, str):
+            st.session_state[f"add_code_{group_name}"] = _rt
+        
+        raw_code = st.session_state.get(f"add_code_{group_name}", "") or ""
+        parsed_code = parse_stock_code(raw_code.strip()) if raw_code.strip() else ""
+        
+        stock_name = None
+        if len(parsed_code) in (5, 6):
+            stock_name = fetcher.fetch_stock_name(parsed_code)
+        
+        col_code, col_name, col_note = st.columns([1.5, 2, 1.5])
+        with col_code:
+            code_input = st.text_input("股票/基金代码", placeholder="例如 A股 000001 / 港股 06869 / 基金 510300",
                                        key=f"add_code_{group_name}")
         
-        with c2:
+        with col_name:
+            if stock_name:
+                st.markdown(f"<div style='margin-top:25px'><span style='color:#4CAF50;font-weight:600;font-size:15px'>📌 {stock_name}</span></div>", unsafe_allow_html=True)
+            elif len(parsed_code) in (5, 6):
+                st.markdown(f"<div style='margin-top:25px'><span style='color:#9E9E9E'>❓ 未查询到名称</span></div>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div style='margin-top:25px'><span style='color:#BDBDBD;font-size:13px'>输入代码后自动显示名称</span></div>", unsafe_allow_html=True)
+        
+        with col_note:
             note_input = st.text_input("备注（选填）", key=f"add_note_{group_name}")
-        
-        # 实时查询股票/基金名称（支持A股6位、港股5位、基金6位）
-        stock_name = None
-        code = ""
-        if code_input.strip():
-            code = parse_stock_code(code_input.strip())
-            if len(code) in (5, 6):
-                stock_name = fetcher.fetch_stock_name(code)
-        
-        # 显示股票/基金名称
-        if stock_name:
-            st.markdown(f"<span style='color:#4CAF50; font-weight:500'>📌 {stock_name}</span>", unsafe_allow_html=True)
-        elif code and len(code) in (5, 6):
-            st.markdown("<span style='color:#9E9E9E'>❓ 未查询到名称</span>", unsafe_allow_html=True)
         
         if st.button("添加", key=f"add_btn_{group_name}"):
             if not code_input.strip():
@@ -110,30 +151,17 @@ def _render_group(uid, group_name):
     daily_data = db.get_watchlist_daily(uid, today)
     daily_dict = {d["stock_code"]: dict(d) for d in daily_data}
 
-    col_refresh, _ = st.columns([1, 4])
-    with col_refresh:
-        if st.button("🔄 刷新行情", key=f"refresh_{group_name}"):
-            try:
-                sync._sync_watchlist_daily(uid, today)
-                daily_data = db.get_watchlist_daily(uid, today)
-                daily_dict = {d["stock_code"]: dict(d) for d in daily_data}
-                st.success("行情已更新")
-            except Exception as e:
-                st.error(f"刷新失败: {e}")
-
     # 构建DataFrame用于st.dataframe展示
     df_data = []
     for s in stocks:
         d = daily_dict.get(s["code"], {})
         change = d.get("change_pct")
         change_val = float(change) if change else None
-        change_str = f"{change:+.2f}%" if change else "-"
         df_data.append({
             "代码": s["code"],
             "名称": s["name"] or "-",
             "现价": d.get("close_price", 0),
-            "涨跌幅数值": change_val,
-            "涨跌幅": change_str,
+            "涨跌幅": change_val,
             "备注": s["note"] or "-"
         })
     
@@ -141,17 +169,13 @@ def _render_group(uid, group_name):
     
     # 使用pandas Styler对涨跌幅列着色
     def color_change(val):
-        if val is None or val == "-":
+        if val is None:
             return ""
-        try:
-            num = float(val.replace("%", ""))
-            if num > 0:
-                return "color: #D32F2F; font-weight: 500;"
-            elif num < 0:
-                return "color: #2E7D32; font-weight: 500;"
-            else:
-                return ""
-        except:
+        if val > 0:
+            return "color: #D32F2F; font-weight: 500;"
+        elif val < 0:
+            return "color: #2E7D32; font-weight: 500;"
+        else:
             return ""
     
     styled_df = df.style.map(color_change, subset=["涨跌幅"])
@@ -168,8 +192,7 @@ def _render_group(uid, group_name):
             "代码": st.column_config.TextColumn("代码", width="small"),
             "名称": st.column_config.TextColumn("名称", width="medium"),
             "现价": st.column_config.NumberColumn("现价", format="%.2f", width="small"),
-            "涨跌幅数值": None,
-            "涨跌幅": st.column_config.TextColumn("涨跌幅", width="small"),
+            "涨跌幅": st.column_config.NumberColumn("涨跌幅", format="%.2f%%", width="small"),
             "备注": st.column_config.TextColumn("备注", width="medium"),
         }
     )

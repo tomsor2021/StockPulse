@@ -83,22 +83,42 @@ def render():
                 st.metric("跌停家数", snapshot.get("limit_down_count", 0))
 
     with tab2:
-        st.subheader("自选股今日表现")
         daily_data = db.get_watchlist_daily(uid, date_str)
+        st.subheader(f"自选股今日表现（{len(daily_data)}只）")
         if daily_data:
             rows = []
             for row in daily_data:
+                change_val = row["change_pct"]
                 rows.append({
                     "代码": row["stock_code"],
                     "名称": row["stock_name"],
                     "收盘价": row["close_price"],
-                    "涨跌幅": f"{row['change_pct']:+.2f}%" if row["change_pct"] else "--",
+                    "涨跌幅": change_val,
                     "量比": f"{row['volume_ratio']:.2f}" if row["volume_ratio"] else "--",
                     "状态": row["status"] or "正常",
                 })
             import pandas as pd
             df = pd.DataFrame(rows)
-            st.dataframe(df, hide_index=True, width="stretch")
+
+            # 涨跌幅颜色
+            def _color_change(val):
+                if val is None:
+                    return ""
+                if val > 0:
+                    return "color: #D32F2F; font-weight: 500;"
+                elif val < 0:
+                    return "color: #2E7D32; font-weight: 500;"
+                return ""
+
+            df_styled = df.style.map(_color_change, subset=["涨跌幅"])
+            st.dataframe(
+                df_styled,
+                column_config={
+                    "涨跌幅": st.column_config.NumberColumn(format="%.2f%%"),
+                },
+                hide_index=True,
+                width="stretch",
+            )
 
             # 个股K线
             st.subheader("个股K线图")

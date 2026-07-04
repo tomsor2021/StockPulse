@@ -1,7 +1,10 @@
 """首页看板"""
 import streamlit as st
 import pandas as pd
+import requests
+import logging
 from datetime import date, datetime, timedelta
+from typing import List, Dict
 from database import models as db
 from data import sync, cache, fetcher
 from config.theme import get_theme_color, color_change, arrow_change
@@ -17,6 +20,39 @@ def _get_cached_global_data():
 @st.cache_data(ttl=60, show_spinner="加载指数行情...")
 def _get_cached_index_data():
     return fetcher.get_index_data_for_review()
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _get_cached_articles() -> List[Dict]:
+    """从新浪财经 API 获取最新财经文章"""
+    logger = logging.getLogger("stockpulse.dashboard")
+    _SINA_API = "https://feed.mix.sina.com.cn/api/roll/get"
+    _HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    try:
+        r = requests.get(
+            _SINA_API,
+            params={"pageid": 153, "lid": 2509, "k": "", "num": 10},
+            headers=_HEADERS,
+            timeout=8,
+        )
+        r.raise_for_status()
+        data = r.json()
+        items = []
+        for item in data.get("result", {}).get("data", [])[:8]:
+            title = item.get("title", "").strip()
+            url = item.get("url", "").strip()
+            source = item.get("media_name", "").strip()
+            ctime = item.get("ctime", "")
+            if title and url:
+                if ctime:
+                    try:
+                        ctime = datetime.fromtimestamp(int(ctime)).strftime("%m-%d %H:%M")
+                    except:  # noqa: E722
+                        pass
+                items.append({"title": title, "url": url, "source": source, "ctime": ctime})
+        return items
+    except Exception as e:
+        logger.warning(f"新浪财经文章获取失败: {e}")
+        return []
 
 def render():
     colors = get_theme_color(THEME_LIGHT)
@@ -67,6 +103,7 @@ def render():
 
     index_data = _get_cached_index_data()
     global_data = _get_cached_global_data()
+    articles = _get_cached_articles()
 
     # 第一行：A股四大指数
     st.subheader("📊 A股指数")
@@ -93,6 +130,67 @@ def render():
         kc = (index_data.get("kc") or {}) if index_data else {}
         market_metric("科创板指", kc.get("close"), kc.get("change_pct"))
 
+    # ── 当日大盘走势分析 ──
+    snap = dict(snapshot) if snapshot else {}
+    sh_chg_str = f"{sh_chg:+.2f}%" if sh_chg is not None else "--"
+    sz_chg_str = f"{sz_chg:+.2f}%" if sz_chg is not None else "--"
+    cy_chg_str = f"{cy_chg:+.2f}%" if cy_chg is not None else "--"
+    limit_up = snap.get("limit_up_count", 0)
+    limit_down = snap.get("limit_down_count", 0)
+    
+    # 涨跌方向描述
+    changes = [x for x in [sh_chg, sz_chg, cy_chg] if x is not None]
+    if changes:
+        up_cnt = sum(1 for x in changes if x > 0)
+        if up_cnt == len(changes):
+            trend = "📈 三大指数集体上涨"
+        elif up_cnt == 0:
+            trend = "📉 三大指数集体下跌"
+        else:
+            trend = "📊 三大指数涨跌互现"
+    else:
+        trend = "暂无当日数据"
+    
+    # 市场情绪
+    if limit_up or limit_down:
+        ratio = limit_up / max(limit_down, 1)
+        if ratio >= 4:
+            mood = "市场情绪偏热，做多意愿较强"
+        elif ratio <= 0.25:
+            mood = "市场情绪偏冷，做多意愿不足"
+        else:
+            mood = "市场情绪中性，多空相对均衡"
+    else:
+        mood = ""
+    
+    st.markdown(f"""
+    <div style="background:#F5F7FA;padding:12px 16px;border-radius:8px;margin:8px 0 12px 0;font-size:14px;line-height:1.7">
+        <div style="font-weight:600;margin-bottom:4px">{trend}</div>
+        <div style="display:flex;gap:20px;color:#555">
+            <span>上证 {sh_chg_str}</span>
+            <span>深证 {sz_chg_str}</span>
+            <span>创业板 {cy_chg_str}</span>
+        </div>
+        <div style="color:#777;margin-top:4px">
+            涨停 {limit_up} 家 · 跌停 {limit_down} 家{' · ' + mood if mood else ''}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # —— 机构观点 ——
+    with st.expander("📰 机构观点", expanded=False):
+        if not articles:
+            st.markdown("<span style='color:#999;font-size:13px'>暂无最新文章</span>", unsafe_allow_html=True)
+        else:
+            lines = []
+            for a in articles:
+                tag = f"[{a['source']}]" if a["source"] else ""
+                time = a.get("ctime", "")
+                time_tag = f"<span style='color:#aaa;font-size:12px'>{time}</span>" if time else ""
+                lines.append(
+                    f"- [{a['title']}]({a['url']}) {tag} {time_tag}"
+                )
+            st.markdown("\n".join(lines), unsafe_allow_html=True)
     # 第二行：全球指数
     st.subheader("🌍 全球指数")
     c1, c2, c3, c4 = st.columns(4)
@@ -116,6 +214,36 @@ def render():
         nd_close = nasdaq.get("close")
         nd_chg = nasdaq.get("change_pct")
         market_metric("纳斯达克", nd_close, nd_chg)
+
+    # ── 全球指数走势分析 ──
+    hsi_chg_str = f"{hsi_chg:+.2f}%" if hsi_chg is not None else "--"
+    nk_chg_str = f"{nk_chg:+.2f}%" if nk_chg is not None else "--"
+    sp_chg_str = f"{sp_chg:+.2f}%" if sp_chg is not None else "--"
+    nd_chg_str = f"{nd_chg:+.2f}%" if nd_chg is not None else "--"
+    
+    g_changes = [x for x in [hsi_chg, nk_chg, sp_chg, nd_chg] if x is not None]
+    if g_changes:
+        g_up_cnt = sum(1 for x in g_changes if x > 0)
+        if g_up_cnt == len(g_changes):
+            g_trend = "🌍 全球主要指数集体上涨"
+        elif g_up_cnt == 0:
+            g_trend = "🌍 全球主要指数集体下跌"
+        else:
+            g_trend = "🌍 全球主要指数涨跌互现"
+    else:
+        g_trend = "暂无当日数据"
+    
+    st.markdown(f"""
+    <div style="background:#F5F7FA;padding:12px 16px;border-radius:8px;margin:8px 0 12px 0;font-size:14px;line-height:1.7">
+        <div style="font-weight:600;margin-bottom:4px">{g_trend}</div>
+        <div style="display:flex;gap:20px;color:#555">
+            <span>恒生 {hsi_chg_str}</span>
+            <span>日经 {nk_chg_str}</span>
+            <span>标普 {sp_chg_str}</span>
+            <span>纳斯达克 {nd_chg_str}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # 第三行：市场统计
     st.subheader("📈 市场统计")

@@ -119,7 +119,7 @@ def init_database():
         status TEXT,
         note TEXT
     );
-    CREATE INDEX IF NOT EXISTS IX_watchlist_daily ON watchlist_daily(user_id, date);
+    CREATE UNIQUE INDEX IF NOT EXISTS IX_watchlist_daily ON watchlist_daily(user_id, date, stock_code);
 
     CREATE TABLE IF NOT EXISTS attachments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -172,6 +172,14 @@ def init_database():
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS IX_stock_basic_name ON stock_basic(name);
+    """)
+    conn.commit()
+
+    # 清理 watchlist_daily 的重复数据（唯一索引已就位，清理存量后不会再产生重复）
+    conn.execute("""
+        DELETE FROM watchlist_daily WHERE id NOT IN (
+            SELECT MAX(id) FROM watchlist_daily GROUP BY user_id, date, stock_code
+        )
     """)
     conn.commit()
 

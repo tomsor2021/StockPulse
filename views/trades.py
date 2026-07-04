@@ -32,23 +32,29 @@ def render():
         c1, c2 = st.columns(2)
         with c1:
             t_date = st.date_input("交易日期", value=today, key="new_trade_date")
-            t_code = st.text_input("股票代码", placeholder="例如 A股 000001 / 港股 06869", key="new_trade_code")
             
-            # 实时查询股票名称（支持A股6位和港股5位）
+            # 先在 session_state 读到代码值，用于查询名称
+            _raw = st.session_state.get("new_trade_code", "") or ""
             trade_stock_name = None
-            if t_code.strip():
-                code = parse_stock_code(t_code.strip())
-                if len(code) in (5, 6):
+            if _raw.strip():
+                _parsed = parse_stock_code(_raw.strip())
+                if len(_parsed) in (5, 6):
                     try:
-                        trade_stock_name = fetcher.fetch_stock_name(code)
+                        trade_stock_name = fetcher.fetch_stock_name(_parsed)
                     except Exception:
                         pass
             
-            # 显示股票名称
-            if trade_stock_name:
-                st.markdown(f"<span style='color:#4CAF50; font-weight:500'>📌 {trade_stock_name}</span>", unsafe_allow_html=True)
-            elif t_code.strip() and len(parse_stock_code(t_code.strip())) in (5, 6):
-                st.markdown("<span style='color:#FF9800'>⏳ 查询中...</span>", unsafe_allow_html=True)
+            # 代码输入框和股票名称并排显示
+            sub_code, sub_name = st.columns([1.5, 2])
+            with sub_code:
+                t_code = st.text_input("股票代码", placeholder="例如 A股 000001 / 港股 06869", key="new_trade_code")
+            with sub_name:
+                if trade_stock_name:
+                    st.markdown(f"<div style='margin-top:25px'><span style='color:#4CAF50; font-weight:500'>📌 {trade_stock_name}</span></div>", unsafe_allow_html=True)
+                elif _raw.strip() and len(parse_stock_code(_raw.strip())) in (5, 6):
+                    st.markdown("<div style='margin-top:25px'><span style='color:#FF9800'>⏳ 查询中...</span></div>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<div style='margin-top:25px'><span style='color:#BDBDBD;font-size:13px'>输入代码回车后显示名称</span></div>", unsafe_allow_html=True)
             
             t_dir = st.selectbox("方向", ["买入", "卖出"], key="new_trade_dir")
             t_price = st.number_input("成交价", step=0.01, format="%.2f", key="new_trade_price")
@@ -78,6 +84,8 @@ def render():
     code_filter_clean = parse_stock_code(code_filter.strip()) if code_filter.strip() else None
 
     transactions = db.get_transactions(uid, start, end, code_filter_clean, direction)
+
+    st.caption(f"共 {len(transactions)} 条记录")
 
     # 表格
     if transactions:
