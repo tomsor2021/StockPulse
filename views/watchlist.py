@@ -121,55 +121,62 @@ def _render_group(uid, group_name):
             except Exception as e:
                 st.error(f"刷新失败: {e}")
 
-    # 初始化选中状态字典
-    if f"selected_map_{group_name}" not in st.session_state:
-        st.session_state[f"selected_map_{group_name}"] = {}
-
-    # 全选复选框
-    col_select_all, _ = st.columns([1, 9])
-    with col_select_all:
-        select_all = st.checkbox("全选", key=f"select_all_{group_name}",
-                                  value=all(st.session_state[f"selected_map_{group_name}"].get(f"chk_{s['code']}_{group_name}", False) for s in stocks) if stocks else False)
-    
-    if select_all:
-        for s in stocks:
-            st.session_state[f"selected_map_{group_name}"][f"chk_{s['code']}_{group_name}"] = True
-    else:
-        for s in stocks:
-            st.session_state[f"selected_map_{group_name}"][f"chk_{s['code']}_{group_name}"] = False
-
-    # 渲染带复选框的股票列表
+    # 构建DataFrame用于st.dataframe展示
+    df_data = []
     for s in stocks:
         d = daily_dict.get(s["code"], {})
         change = d.get("change_pct")
-        change_str = f"{'📈' if change and change > 0 else '📉' if change and change < 0 else ''}{change:+.2f}%" if change else "-"
-        close_price = d.get("close_price") or 0
-        
-        chk_key = f"chk_{s['code']}_{group_name}"
-        is_selected = st.session_state[f"selected_map_{group_name}"].get(chk_key, False)
-        
-        col_check, col_code, col_name, col_price, col_change, col_note = st.columns([1, 2, 3, 2, 2, 4])
-        with col_check:
-            checked = st.checkbox("", value=is_selected, key=chk_key)
-            st.session_state[f"selected_map_{group_name}"][chk_key] = checked
-        
-        with col_code:
-            st.write(f"**{s['code']}**")
-        
-        with col_name:
-            st.write(s["name"] or "-")
-        
-        with col_price:
-            st.write(f"{close_price:.2f}")
-        
-        with col_change:
-            st.markdown(f"<span style='{'color:red' if change and change > 0 else 'color:green' if change and change < 0 else 'color:gray'}'>{change_str}</span>", unsafe_allow_html=True)
-        
-        with col_note:
-            st.write(s["note"] or "-")
-
-    # 从选中映射中获取选中的股票代码列表
-    selected_stocks = [s["code"] for s in stocks if st.session_state[f"selected_map_{group_name}"].get(f"chk_{s['code']}_{group_name}", False)]
+        change_val = float(change) if change else None
+        change_str = f"{change:+.2f}%" if change else "-"
+        df_data.append({
+            "代码": s["code"],
+            "名称": s["name"] or "-",
+            "现价": d.get("close_price", 0),
+            "涨跌幅数值": change_val,
+            "涨跌幅": change_str,
+            "备注": s["note"] or "-"
+        })
+    
+    df = pd.DataFrame(df_data)
+    
+    # 使用pandas Styler对涨跌幅列着色
+    def color_change(val):
+        if val is None or val == "-":
+            return ""
+        try:
+            num = float(val.replace("%", ""))
+            if num > 0:
+                return "color: #D32F2F; font-weight: 500;"
+            elif num < 0:
+                return "color: #2E7D32; font-weight: 500;"
+            else:
+                return ""
+        except:
+            return ""
+    
+    styled_df = df.style.map(color_change, subset=["涨跌幅"])
+    
+    # 使用st.dataframe原生行选择功能
+    selection = st.dataframe(
+        styled_df,
+        use_container_width=True,
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="multi-row",
+        key=f"watchlist_table_{group_name}",
+        column_config={
+            "代码": st.column_config.TextColumn("代码", width="small"),
+            "名称": st.column_config.TextColumn("名称", width="medium"),
+            "现价": st.column_config.NumberColumn("现价", format="%.2f", width="small"),
+            "涨跌幅数值": None,
+            "涨跌幅": st.column_config.TextColumn("涨跌幅", width="small"),
+            "备注": st.column_config.TextColumn("备注", width="medium"),
+        }
+    )
+    
+    # 获取选中的股票代码
+    selected_indices = selection.selection.rows
+    selected_stocks = [stocks[i]["code"] for i in selected_indices]
     
     # 操作区
     st.divider()
@@ -241,8 +248,6 @@ def _render_group(uid, group_name):
                                                    stock["alert_volume_ratio"], stock["alert_break_price"])
                             db.soft_delete_watchlist_stock(uid, code, group_name)
                     st.success(f"已移动 {len(selected_stocks)} 只股票到 {target_group}")
-                    for s in stocks:
-                        st.session_state[f"selected_map_{group_name}"][f"chk_{s['code']}_{group_name}"] = False
                     st.rerun()
             else:
                 st.info("没有其他分组可移动")
@@ -269,8 +274,6 @@ def _render_group(uid, group_name):
                 for code in selected_stocks:
                     db.soft_delete_watchlist_stock(uid, code, group_name)
                 st.success(f"已删除 {len(selected_stocks)} 只股票")
-                for s in stocks:
-                    st.session_state[f"selected_map_{group_name}"][f"chk_{s['code']}_{group_name}"] = False
                 st.rerun()
     else:
         st.info("请选择要操作的股票")
