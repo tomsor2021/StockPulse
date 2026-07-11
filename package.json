@@ -1,5 +1,8 @@
 {
   "dependencies": {
     "@playwright/test": "^1.61.1"
+  },
+  "devDependencies": {
+    "@cloudbase/cloudbase-mcp": "^2.23.8"
   }
 }

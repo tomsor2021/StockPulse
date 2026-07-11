@@ -1,0 +1,17 @@
+.trae/
+.vscode/
+.git/
+skills/
+skillhub_install/
+tests/
+scripts/
+__pycache__/
+*.pyc
+*.pyo
+*.db
+*.tar.gz
+*.log
+.DS_Store
+.env
+node_modules/
+package-lock.json

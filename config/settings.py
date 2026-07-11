@@ -3,10 +3,18 @@ import os
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-DB_DIR = ROOT_DIR
-DB_PATH = DB_DIR / "StockPulse.db"
+
+if os.environ.get("TENCENT_CLOUDBASE") == "true":
+    DB_PATH = Path("/tmp") / "StockPulse.db"
+    LOG_DIR = Path("/tmp") / "logs"
+    ATTACHMENTS_DIR = Path("/tmp") / "attachments"
+else:
+    DB_DIR = ROOT_DIR
+    DB_PATH = DB_DIR / "StockPulse.db"
+    LOG_DIR = ROOT_DIR / "logs"
+    ATTACHMENTS_DIR = ROOT_DIR / "attachments"
+
 DB_VERSION = 2
-LOG_DIR = ROOT_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_LEVEL = "INFO"
 LOG_RETENTION_DAYS = 30
@@ -33,7 +41,6 @@ COLOR_FLAT = "#9E9E9E"
 ASSETS_DIR = ROOT_DIR / "assets"
 CSS_PATH = ASSETS_DIR / "css" / "custom.css"
 LOGO_PATH = ASSETS_DIR / "images" / "logo.png"
-ATTACHMENTS_DIR = ROOT_DIR / "attachments"
 ATTACHMENTS_DIR.mkdir(parents=True, exist_ok=True)
 MAX_ATTACHMENT_SIZE_MB = 10
 ALLOWED_ATTACHMENT_TYPES = {".jpg", ".jpeg", ".png", ".gif", ".bmp"}

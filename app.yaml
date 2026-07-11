@@ -1,0 +1,6 @@
+env:
+  - key: PYTHONPATH
+    value: /app
+  - key: TENCENT_CLOUDBASE
+    value: true
+command: python server.py
