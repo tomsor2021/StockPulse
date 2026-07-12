@@ -1,19 +1,6 @@
-[general]
-email = "your-email@example.com"
-
 [server]
 headless = true
-port = $PORT
 enableCORS = false
-enableXsrfProtection = false
-
-[theme]
-base = "light"
-primaryColor = "#D32F2F"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F5F5F5"
-textColor = "#1E1E1E"
-font = "sans serif"
 
 [browser]
 gatherUsageStats = false

@@ -47,47 +47,64 @@
 - 首次部署可能需要几分钟
 - 部署成功后，您将获得一个公开访问的 URL
 
-## 注意事项
+## 常见问题及解决方案
 
-1. **数据库**：Streamlit Community Cloud 使用 SQLite 数据库，数据存储在 `/tmp` 目录下，重启后数据会丢失。如需持久化数据，建议连接外部数据库。
+### 问题：页面空白，应用未启动
 
-2. **依赖安装**：Streamlit 会自动安装 `requirements.txt` 中的依赖。
+**可能原因：**
 
-3. **访问权限**：应用部署后是公开访问的，任何人都可以访问。
+1. **依赖安装失败**：Streamlit Community Cloud 无法安装某些依赖
+2. **配置文件错误**：`.streamlit/config.toml` 配置不正确
+3. **数据库权限问题**：应用无法在 `/tmp` 目录创建数据库文件
 
-4. **资源限制**：免费版有资源限制，包括内存、CPU 和部署时长。
+**解决方案：**
+
+1. **查看部署日志**：
+   - 在 Streamlit Community Cloud 控制台，点击应用
+   - 点击右上角三个点 → 「View logs」
+   - 检查是否有错误信息
+
+2. **简化依赖**：
+   - 确保 `requirements.txt` 中没有不兼容的依赖
+   - 移除 `bcrypt`（已移除）
+
+3. **检查数据库路径**：
+   - 应用会自动在 `/tmp` 目录创建数据库
+   - 如果权限问题，添加环境变量 `TENCENT_CLOUDBASE=true`
+
+### 问题：依赖安装失败
+
+**解决方案：**
+
+1. 检查 `requirements.txt` 是否包含所有必要依赖
+2. 尝试降低某些依赖的版本要求
+3. 查看日志中具体哪个依赖安装失败
+
+### 问题：数据丢失
+
+Streamlit Community Cloud 的免费版使用临时存储，重启后数据会丢失。如需持久化：
+- 使用云数据库（如 CloudBase NoSQL）
+- 使用外部数据库服务
 
 ## 环境变量（可选）
 
 如需配置环境变量，在 Streamlit Community Cloud 控制台中：
 1. 点击应用 → 「Settings」→ 「Secrets」
-2. 添加以下变量（如需）：
+2. 添加以下变量：
    ```
    TENCENT_CLOUDBASE=true
    ```
-
-## 故障排除
-
-### 部署失败
-
-1. 检查 `requirements.txt` 是否包含所有必要依赖
-2. 检查 Python 版本兼容性
-3. 查看部署日志获取详细错误信息
-
-### 应用无法启动
-
-1. 检查 `streamlit_app.py` 是否存在
-2. 检查 `app.py` 是否有语法错误
-3. 查看应用日志
-
-### 数据丢失
-
-Streamlit Community Cloud 的免费版使用临时存储，重启后数据会丢失。如需持久化：
-- 使用云数据库（如 CloudBase NoSQL）
-- 使用外部数据库服务
 
 ## 升级维护
 
 1. 在本地修改代码
 2. 重新上传到 GitHub 仓库
 3. Streamlit Community Cloud 会自动检测变更并重新部署
+
+## 文件变更记录
+
+### v1.1 - 修复部署问题
+
+- 移除 `bcrypt` 依赖（可能导致安装失败）
+- 修复 `.streamlit/config.toml` 配置
+- 添加错误处理到 `streamlit_app.py`
